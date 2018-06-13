@@ -59,83 +59,83 @@ use Psr\Http\Message\ResponseInterface;
  * @method static DropcartClient setPublicKey(string $public_key) Sets the overall public key
  * @method static DropcartClient setPrivateKey(string $private_key) Sets the overall private key
  */
+
 class DropcartClient {
+    /**
+     * @var DropcartClient
+     */
+    private static $instance;
 
-	/**
-	 * @var DropcartClient
-	 */
-	private static $instance;
+    /**
+     * @var DropcartClientOptions
+     */
+    private static $options;
 
-	/**
-	 * @var DropcartClientOptions
-	 */
-	private static $options;
+    /**
+     * @var Client
+     */
+    private static $http;
 
-	/**
-	 * @var Client
-	 */
-	private static $http;
+    /**
+     * @var Caller
+     */
+    private static $current_call_stack;
 
-	/**
-	 * @var Caller
-	 */
-	private static $current_call_stack;
-
-	/**
-	 * @var array
-	 */
-	private static $cache_call_stack = [];
-
-
-	const CALL_ENDPOINTS = ['get', 'post', 'put', 'patch', 'delete'];
+    /**
+     * @var array
+     */
+    private static $cache_call_stack = [];
 
 
-	private function __construct() {
-		self::$options  = new DropcartClientOptions();
-		self::$http     = new Client([
-			'base_uri'  => static::options()->getBaseUri(),
-			'timeout'   => static::options()->getTimeout()
-		]);
-	}
+    const CALL_ENDPOINTS = ['get', 'post', 'put', 'patch', 'delete'];
 
-	public static function __callStatic( $name, $arguments )
-	{
-		$firstThreeLetters = substr($name, 0,3);
-		if($firstThreeLetters == 'set')
-		{
-			$var = Str::toSnakeCase(substr($name, 3));
-			return self::options()->set($var, $arguments[0]);
-		} else if($firstThreeLetters == 'get')
-		{
-			$var = Str::toSnakeCase(substr($name, 3));
-			return self::options()->get($var, $arguments[0] ?: null);
-		}
-		else {
-			self::$current_call_stack = new Caller($name, $arguments);
-			return self::getInstance();
-		}
-	}
 
-	public function __call( $name, $arguments )
-	{
-		call_user_func_array([self::$current_call_stack, $name], $arguments);
+    private function __construct() {
+        self::$options  = new DropcartClientOptions();
+        self::$http     = new Client([
+            'base_uri'  => static::options()->getBaseUri(),
+            'timeout'   => static::options()->getTimeout()
+        ]);
+    }
 
-		if(in_array($name, self::CALL_ENDPOINTS))
-		{
-			// Do the request.
-			return $this->request();
-		}
-		else if($name == 'addParams')
-		{
-			return self::$current_call_stack->addParams($arguments);
-		}
-		elseif($name == 'addParam')
-		{
-			if(!isset($arguments[0]) || !isset($arguments[1]))
-				throw new \InvalidArgumentException("Need a name and a value");
+    public static function __callStatic( $name, $arguments )
+    {
+        $firstThreeLetters = substr($name, 0,3);
+        if($firstThreeLetters == 'set')
+        {
+            $var = Str::toSnakeCase(substr($name, 3));
+            return self::options()->set($var, $arguments[0]);
+        } else if($firstThreeLetters == 'get')
+        {
+            $var = Str::toSnakeCase(substr($name, 3));
+            return self::options()->get($var, $arguments[0] ?: null);
+        }
+        else {
+            self::$current_call_stack = new Caller($name, $arguments);
+            return self::getInstance();
+        }
+    }
 
-			return self::$current_call_stack->addParam($arguments[0], $arguments[1]);
-		}
+    public function __call( $name, $arguments )
+    {
+        call_user_func_array([self::$current_call_stack, $name], $arguments);
+
+        if(in_array($name, self::CALL_ENDPOINTS))
+        {
+            // Do the request.
+            return $this->request();
+        }
+        else if($name == 'addParams')
+        {
+            return self::$current_call_stack->addParams($arguments);
+        }
+        elseif($name == 'addParam')
+        {
+            if(!isset($arguments[0]) || !isset($arguments[1]))
+                throw new \InvalidArgumentException("Need a name and a value");
+
+            return self::$current_call_stack->addParam($arguments[0], $arguments[1]);
+        }
         elseif($name == 'getParams') {
             return self::$current_call_stack->getParams();
         }
@@ -143,187 +143,189 @@ class DropcartClient {
         {
             return self::$current_call_stack->hasParams();
         }
-		elseif($name == 'getUrl')
-		{
-			return self::$current_call_stack->getUrl(self::options()->getBaseUri());
-		}
-		else {
-			return self::getInstance();
-		}
-	}
+        elseif($name == 'getUrl')
+        {
+            return self::$current_call_stack->getUrl(self::options()->getBaseUri());
+        }
+        else {
+            return self::getInstance();
+        }
+    }
 
-	/**
-	 * @return DropcartClient
-	 */
-	public static function getInstance()
-	{
-		if(!self::$instance)
-			self::$instance = new DropcartClient();
+    /**
+     * @return DropcartClient
+     */
+    public static function getInstance()
+    {
+        if(!self::$instance)
+            self::$instance = new DropcartClient();
 
-		return self::$instance;
-	}
+        return self::$instance;
+    }
 
-	/**
-	 * @return DropcartClientOptions
-	 */
-	public static function options()
-	{
-		if(!static::$options)
-			static::$options = new DropcartClientOptions();
+    /**
+     * @return DropcartClientOptions
+     */
+    public static function options()
+    {
+        if(!static::$options)
+            static::$options = new DropcartClientOptions();
 
-		return static::$options;
-	}
+        return static::$options;
+    }
 
-	/**
-	 * @return Promise||ResponseInterface
-	 * @throws \Dropcart\PhpClient\DropcartClientException
-	 * @throws \Exception
-	 */
-	private function request()
-	{
-		if(!static::$http)
-			static::$http = new Client(self::options()->getAll());
+    /**
+     * @return Promise||ResponseInterface
+     * @throws \Dropcart\PhpClient\DropcartClientException
+     * @throws \Exception
+     */
+    private function request()
+    {
+        if(!static::$http)
+            static::$http = new Client(self::options()->getAll());
 
 
-		$request    = self::$current_call_stack;
+        $request    = self::$current_call_stack;
 
 //		$cache      = self::options()->getCache(true);
-		$hash       = $request->getHash();
-		$http       =& static::$http;
+        $hash       = $request->getHash();
+        $http       =& static::$http;
 
-		// TODO: Add caching
+        // TODO: Add caching
 
-		// Add to the cache stack
+        // Add to the cache stack
 //		static::$cache_call_stack[$hash] = [
 //			'call'      => $request,
 //			'requested' => time(),
 //			'options'   => static::options()->getAll()
 //		];
 
-		$base_url   = static::options()->getBaseUri();
-		$url        = $request->getUrl($base_url, ($request->hasQuery() && $request->getHttpMethod() == 'GET'));
+        $base_url   = static::options()->getBaseUri();
+        $url        = $request->getUrl($base_url, ($request->hasQuery() && $request->getHttpMethod() == 'GET'));
 
-		$options = [
-			'headers' => [
-				'Authorization' => 'Bearer ' . static::getToken()
-			]
-		];
+        //die('Bearer ' . static::getToken());
+        $bearer = 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiIwOWEyMTRlM2M0MjE3MjdkZDRlYjczMWFkMjQ4YTEyZGMyNDczODY3Yzk0NWZmMDkyYmY4MjYzMDIzZThiNjgzIiwiYXVkIjoiaHR0cDpcL1wvZGVhbC5kcm9wY2FydC5ubFwvIiwiZXhwIjoxNTI4OTExMDU2LCJpYXQiOjE1Mjg4NzUwNTZ9.BI90jkJ3nuRU1tdA9Mj1eXboQBus_hodxVrDN4_Y6QM';
 
-
-		if(strtolower(substr($base_url, 0, 5)) == 'https')
-		{
-			$options[RequestOptions::VERIFY] = static::options()->get('verify', static::options()->get('cert'));
-			//$options[RequestOptions::CERT]   = static::options()->get('cert');
-		}
-
-		if($request->hasParams() && $request->getHttpMethod() == 'GET')
-		{
-			throw new DropcartClientException("Malformed request. Cant't have a body on a GET request.");
-		}
-		else if ($request->hasParams() && $request->hasFiles())
-		{
-			$options['multipart'] = [];
-			foreach($request->getParams() as $name => $contents)
-			{
-				$options['multipart'][] = [
-					'name'      => $name,
-					'contents'  => $contents
-				];
-			}
-
-			// TODO: implement files when necessary
-
-		} else if($request->hasParams())
-		{
-			$options['form_params'] = $request->getParams();
-		}
-
-		// ACTUAL REQUEST
-
-		// Synchonous request
-		// TODO: Implement Async native
-		try {
-			$result = $http->request(
-				$request->getHttpMethod(),
-				$url,
-				$options
-			);
-
-		} catch(ClientException $e) {
-			$result = $e->getResponse();
-		} catch (\Exception $e)
-		{
-			throw $e;
-		}
-
-		static::setResult($hash, $result);
-		return $result;
-	}
-
-	/**
-	 * Remove an item from the cache
-	 *
-	 * @param $hash
-	 *
-	 * @return DropcartClient
-	 */
-	private static function removeCache($hash)
-	{
-		if(isset(static::$cache_call_stack[$hash]))
-			unset(static::$cache_call_stack[$hash]);
-
-		return static::getInstance();
-	}
+        $options = [
+            'headers' => [
+                'Authorization' => $bearer
+            ]
+        ];
 
 
-	/**
-	 * @return \Lcobucci\JWT\Token
-	 * @throws DropcartClientException
-	 */
-	private static function getToken()
-	{
-		if(is_null(static::options()->get('public_key', null)) ||
-		   is_null(static::options()->get('private_key', null)))
-	    {
-		    throw new DropcartClientException("Public and/or private key are not set.");
-	    }
+        if(strtolower(substr($base_url, 0, 5)) == 'https')
+        {
+            $options[RequestOptions::VERIFY] = static::options()->get('verify', static::options()->get('cert'));
+            //$options[RequestOptions::CERT]   = static::options()->get('cert');
+        }
 
-	    if(!isset($_SERVER['HTTP_HOST']))
-	    	$_SERVER['HTTP_HOST'] = gethostname();
+        if($request->hasParams() && $request->getHttpMethod() == 'GET')
+        {
+            throw new DropcartClientException("Malformed request. Cant't have a body on a GET request.");
+        }
+        else if ($request->hasParams() && $request->hasFiles())
+        {
+            $options['multipart'] = [];
+            foreach($request->getParams() as $name => $contents)
+            {
+                $options['multipart'][] = [
+                    'name'      => $name,
+                    'contents'  => $contents
+                ];
+            }
 
-		if(!isset($_SERVER['REQUEST_URI']))
-			$_SERVER['REQUEST_URI'] = '/';
+            // TODO: implement files when necessary
 
-	    $url = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://{$_SERVER['HTTP_HOST']}{$_SERVER['REQUEST_URI']}";
+        } else if($request->hasParams())
+        {
+            $options['form_params'] = $request->getParams();
+        }
 
-		return  (new Builder())->setIssuer(static::options()->getPublicKey())
-								->setAudience(static::options()->getUrl($url))
-								->setExpiration(time() + 60) // Max time is one minute
-								->setIssuedAt(time())
-								->sign((new Sha256()), static::options()->getPrivateKey())
-								->getToken();
-	}
+        // ACTUAL REQUEST
 
-	/**
-	 * Set the result of an request
-	 *
-	 * @param $hash
-	 * @param $result
-	 *
-	 * @return DropcartClient
-	 */
-	public static function setResult($hash, $result)
-	{
-		if(isset(static::$cache_call_stack[$hash]))
-			static::$cache_call_stack[$hash]['result'] = $result;
-		else
-			static::$cache_call_stack[$hash] = [
-				'result'    => $result
-			];
+        // Synchonous request
+        // TODO: Implement Async native
+        try {
+            $result = $http->request(
+                $request->getHttpMethod(),
+                $url,
+                $options
+            );
 
-		return static::getInstance();
-	}
+        } catch(ClientException $e) {
+            $result = $e->getResponse();
+        } catch (\Exception $e)
+        {
+            throw $e;
+        }
 
+        static::setResult($hash, $result);
+        return $result;
+    }
+
+    /**
+     * Remove an item from the cache
+     *
+     * @param $hash
+     *
+     * @return DropcartClient
+     */
+    private static function removeCache($hash)
+    {
+        if(isset(static::$cache_call_stack[$hash]))
+            unset(static::$cache_call_stack[$hash]);
+
+        return static::getInstance();
+    }
+
+
+    /**
+     * @return \Lcobucci\JWT\Token
+     * @throws DropcartClientException
+     */
+    private static function getToken()
+    {
+        if(is_null(static::options()->get('public_key', null)) ||
+            is_null(static::options()->get('private_key', null)))
+        {
+            throw new DropcartClientException("Public and/or private key are not set.");
+        }
+
+        if(!isset($_SERVER['HTTP_HOST']))
+            $_SERVER['HTTP_HOST'] = gethostname();
+
+        if(!isset($_SERVER['REQUEST_URI']))
+            $_SERVER['REQUEST_URI'] = '/';
+
+        $url = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://{$_SERVER['HTTP_HOST']}{$_SERVER['REQUEST_URI']}";
+
+        return  (new Builder())->setIssuer(static::options()->getPublicKey())
+            ->setAudience(static::options()->getUrl($url))
+            ->setExpiration(time() + 36000) // Max time is one minute
+            ->setIssuedAt(time())
+            ->sign((new Sha256()), static::options()->getPrivateKey())
+            ->getToken();
+    }
+
+    /**
+     * Set the result of an request
+     *
+     * @param $hash
+     * @param $result
+     *
+     * @return DropcartClient
+     */
+    public static function setResult($hash, $result)
+    {
+        if(isset(static::$cache_call_stack[$hash]))
+            static::$cache_call_stack[$hash]['result'] = $result;
+        else
+            static::$cache_call_stack[$hash] = [
+                'result'    => $result
+            ];
+
+        return static::getInstance();
+    }
 
 
 }
